@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   getting-started: getting-started.html
   opensim-tool-pipeline: opensim-tool-pipeline.html
-last_built: 2026-08-19T12:05Z
+last_built: 2026-08-19T13:19Z
 urls:
   reference: https://x-biosignal.github.io/PhysioOpenSim/reference
   article: https://x-biosignal.github.io/PhysioOpenSim/articles
