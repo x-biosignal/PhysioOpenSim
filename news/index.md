@@ -1,5 +1,16 @@
 # Changelog
 
+## PhysioOpenSim 0.1.3
+
+### New features
+
+- [`opensimTemplatePath()`](https://x-biosignal.github.io/PhysioOpenSim/reference/opensimTemplatePath.md)
+  returns the path of a bundled tool setup-template XML (`"ik"`, `"id"`,
+  `"so"`, `"cmc"`, `"rra"`, `"analyze"`, `"generic"`), for use as the
+  `template_file` argument of the `opensimWrite*SetupFromTemplate()`
+  writers. The templates now ship in `inst/extdata/` (production
+  location) rather than `inst/testdata/`.
+
 ## PhysioOpenSim 0.1.2
 
 ### Bug fixes

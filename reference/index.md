@@ -44,6 +44,8 @@
   : Save OpenSim Model to File
 - [`opensimSetModelName()`](https://x-biosignal.github.io/PhysioOpenSim/reference/opensimSetModelName.md)
   : Set OpenSim Model Name
+- [`opensimTemplatePath()`](https://x-biosignal.github.io/PhysioOpenSim/reference/opensimTemplatePath.md)
+  : Path to a bundled OpenSim setup-template XML
 - [`opensimWriteAnalyzeSetupFromTemplate()`](https://x-biosignal.github.io/PhysioOpenSim/reference/opensimWriteAnalyzeSetupFromTemplate.md)
   : Write Analyze Setup XML from Template
 - [`opensimWriteCMCSetupFromTemplate()`](https://x-biosignal.github.io/PhysioOpenSim/reference/opensimWriteCMCSetupFromTemplate.md)
