@@ -290,8 +290,7 @@
 </h3>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"x-biosignal/PhysioExperiment"</span>,</span>
-<span>                        subdir <span class="op">=</span> <span class="st">"physio-ecosystem/PhysioOpenSim"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"x-biosignal/PhysioOpenSim"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="opensim-enabled-build">OpenSim-Enabled Build<a class="anchor" aria-label="anchor" href="#opensim-enabled-build"></a>
@@ -299,10 +298,10 @@
 <p>To link against the OpenSim C++ SDK, make the SDK discoverable before installing:</p>
 <p><strong>Using pkg-config (Linux / macOS):</strong></p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="bu">export</span> <span class="va">PKG_CONFIG_PATH</span><span class="op">=</span><span class="st">"/path/to/opensim/lib/pkgconfig:</span><span class="va">${PKG_CONFIG_PATH}</span><span class="st">"</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL physio-ecosystem/PhysioOpenSim</span></code></pre></div>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL PhysioOpenSim</span></code></pre></div>
 <p><strong>Using OPENSIM_HOME (Linux / macOS / Windows):</strong></p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENSIM_HOME</span><span class="op">=</span><span class="st">"/path/to/opensim"</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL physio-ecosystem/PhysioOpenSim</span></code></pre></div>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL PhysioOpenSim</span></code></pre></div>
 <p>The package requires <strong>C++17</strong> and <strong>R &gt;= 4.2</strong>.</p>
 </div>
 </div>

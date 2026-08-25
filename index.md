@@ -110,8 +110,7 @@ install.packages("PhysioOpenSim",
 ``` r
 
 # install.packages("remotes")
-remotes::install_github("x-biosignal/PhysioExperiment",
-                        subdir = "physio-ecosystem/PhysioOpenSim")
+remotes::install_github("x-biosignal/PhysioOpenSim")
 ```
 
 ### OpenSim-Enabled Build
@@ -123,14 +122,14 @@ installing:
 
 ``` bash
 export PKG_CONFIG_PATH="/path/to/opensim/lib/pkgconfig:${PKG_CONFIG_PATH}"
-R CMD INSTALL physio-ecosystem/PhysioOpenSim
+R CMD INSTALL PhysioOpenSim
 ```
 
 **Using OPENSIM_HOME (Linux / macOS / Windows):**
 
 ``` bash
 export OPENSIM_HOME="/path/to/opensim"
-R CMD INSTALL physio-ecosystem/PhysioOpenSim
+R CMD INSTALL PhysioOpenSim
 ```
 
 The package requires **C++17** and **R \>= 4.2**.
