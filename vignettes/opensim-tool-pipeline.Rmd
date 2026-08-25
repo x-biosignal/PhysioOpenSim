@@ -1,0 +1,218 @@
+---
+title: "OpenSim Tool Pipeline: IK to ID to SO"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{OpenSim Tool Pipeline: IK to ID to SO}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+A common OpenSim workflow chains multiple tools in sequence:
+
+1. **Inverse Kinematics (IK)** -- Compute joint angles from marker data
+2. **Inverse Dynamics (ID)** -- Compute joint moments from kinematics + forces
+3. **Static Optimization (SO)** -- Estimate muscle forces from joint moments
+
+PhysioOpenSim's template system and tool runners make it straightforward to
+script this pipeline entirely in R.
+
+## Prerequisites
+
+This vignette assumes you have:
+
+- An OpenSim model file (`.osim`)
+- Marker trajectory data (`.trc`)
+- External forces data (`.mot` or `.xml`)
+- Template XML files for each tool
+
+## Step 1: Inverse Kinematics
+
+Generate the IK setup from a template, then run it.
+
+```{r ik-template}
+library(PhysioOpenSim)
+
+# Create dummy files for demonstration
+model_file <- tempfile(fileext = ".osim")
+marker_file <- tempfile(fileext = ".trc")
+writeLines("dummy", model_file)
+writeLines("dummy", marker_file)
+
+# Create an IK template
+ik_tpl <- tempfile(fileext = ".xml")
+writeLines(c(
+  '<?xml version="1.0" encoding="UTF-8" ?>',
+  '<OpenSimDocument Version="40000">',
+  '  <InverseKinematicsTool name="ik">',
+  '    <model_file>Unassigned</model_file>',
+  '    <marker_file>Unassigned</marker_file>',
+  '    <output_motion_file>Unassigned</output_motion_file>',
+  '    <time_range>0 1</time_range>',
+  '    <results_directory>./</results_directory>',
+  '  </InverseKinematicsTool>',
+  '</OpenSimDocument>'
+), ik_tpl)
+
+ik_output <- tempfile(fileext = ".mot")
+ik_setup <- tempfile(fileext = ".xml")
+
+ik_result <- opensimWriteIKSetupFromTemplate(
+  template_file = ik_tpl,
+  output_file = ik_setup,
+  model_file = model_file,
+  marker_file = marker_file,
+  output_motion_file = ik_output,
+  time_range = c(0.5, 2.0),
+  results_directory = tempdir()
+)
+
+cat("Applied tags:", paste(ik_result$applied_tags, collapse = ", "), "\n")
+```
+
+```{r ik-run, eval = FALSE}
+# Execute IK (requires OpenSim)
+ik_run <- opensimRunIK(ik_setup)
+cat("IK exit status:", ik_run$status, "\n")
+cat("IK elapsed:", round(ik_run$elapsed_sec, 2), "sec\n")
+```
+
+## Step 2: Inverse Dynamics
+
+ID uses the IK output as input coordinates.
+
+```{r id-template}
+# Create an ID template
+id_tpl <- tempfile(fileext = ".xml")
+writeLines(c(
+  '<?xml version="1.0" encoding="UTF-8" ?>',
+  '<OpenSimDocument Version="40000">',
+  '  <InverseDynamicsTool name="id">',
+  '    <model_file>Unassigned</model_file>',
+  '    <coordinates_file>Unassigned</coordinates_file>',
+  '    <output_gen_force_file>Unassigned</output_gen_force_file>',
+  '    <time_range>0 1</time_range>',
+  '    <lowpass_cutoff_frequency_for_coordinates>-1</lowpass_cutoff_frequency_for_coordinates>',
+  '    <results_directory>./</results_directory>',
+  '  </InverseDynamicsTool>',
+  '</OpenSimDocument>'
+), id_tpl)
+
+# IK output becomes ID input -- create a dummy for the demo
+ik_output_file <- tempfile(fileext = ".mot")
+writeLines("dummy", ik_output_file)
+
+id_output <- tempfile(fileext = ".sto")
+id_setup <- tempfile(fileext = ".xml")
+
+id_result <- opensimWriteIDSetupFromTemplate(
+  template_file = id_tpl,
+  output_file = id_setup,
+  model_file = model_file,
+  coordinates_file = ik_output_file,
+  output_gen_force_file = id_output,
+  time_range = c(0.5, 2.0),
+  lowpass_cutoff_frequency_for_coordinates = 6
+)
+
+cat("Applied tags:", paste(id_result$applied_tags, collapse = ", "), "\n")
+```
+
+```{r id-run, eval = FALSE}
+# Execute ID
+id_run <- opensimRunID(id_setup)
+cat("ID exit status:", id_run$status, "\n")
+```
+
+## Step 3: Static Optimization
+
+SO uses the same coordinates as ID.
+
+```{r so-template}
+# Create an SO template
+so_tpl <- tempfile(fileext = ".xml")
+writeLines(c(
+  '<?xml version="1.0" encoding="UTF-8" ?>',
+  '<OpenSimDocument Version="40000">',
+  '  <StaticOptimization name="so">',
+  '    <model_file>Unassigned</model_file>',
+  '    <coordinates_file>Unassigned</coordinates_file>',
+  '    <time_range>0 1</time_range>',
+  '    <results_directory>./</results_directory>',
+  '  </StaticOptimization>',
+  '</OpenSimDocument>'
+), so_tpl)
+
+so_setup <- tempfile(fileext = ".xml")
+
+so_result <- opensimWriteSOSetupFromTemplate(
+  template_file = so_tpl,
+  output_file = so_setup,
+  model_file = model_file,
+  coordinates_file = ik_output_file,
+  time_range = c(0.5, 2.0),
+  results_directory = tempdir()
+)
+
+cat("Applied tags:", paste(so_result$applied_tags, collapse = ", "), "\n")
+```
+
+```{r so-run, eval = FALSE}
+# Execute SO
+so_run <- opensimRunSO(so_setup)
+cat("SO exit status:", so_run$status, "\n")
+```
+
+## Running the Full Pipeline
+
+In practice you would run all three steps sequentially.
+
+```{r pipeline, eval = FALSE}
+# Full pipeline
+ik <- opensimRunIK(ik_setup)
+stopifnot(ik$status == 0)
+
+id <- opensimRunID(id_setup)
+stopifnot(id$status == 0)
+
+so <- opensimRunSO(so_setup)
+stopifnot(so$status == 0)
+
+cat("Pipeline complete.\n")
+```
+
+## Inspecting Results
+
+Tool execution returns a list with useful metadata:
+
+```{r result-structure, eval = FALSE}
+str(ik)
+# List of 9
+#  $ execution  : chr "cli"
+#  $ command    : chr "/usr/local/bin/opensim-cmd"
+#  $ args       : chr [1:2] "run-tool" "/path/to/ik_setup.xml"
+#  $ setup_file : chr "/path/to/ik_setup.xml"
+#  $ workdir    : chr "/path/to/workdir"
+#  $ status     : int 0
+#  $ stdout     : chr [1:..] "..."
+#  $ stderr     : chr [1:..] "..."
+#  $ elapsed_sec: num 3.45
+```
+
+## Backend Selection
+
+The `execution` parameter controls which backend is used:
+
+| Value | Behavior |
+|-------|----------|
+| `"auto"` (default) | Native if available and tool_type is specific; CLI otherwise |
+| `"native"` | Force native; errors if not compiled with OpenSim |
+| `"cli"` | Force CLI; errors if `opensim-cmd` is not found |
+
+Native execution is faster but does not support `extra_args` or the generic
+`tool_type = "tool"` token.
