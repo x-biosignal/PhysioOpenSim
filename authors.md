@@ -10,13 +10,13 @@ Source:
 [`inst/CITATION`](https://github.com/x-biosignal/PhysioOpenSim/blob/main/inst/CITATION)
 
 Matsui Y (2026). *PhysioOpenSim: Native OpenSim C++ Integration for
-PhysioExperiment*. R package version 0.1.3,
+PhysioExperiment*. R package version 0.1.4,
 <https://github.com/x-biosignal/PhysioOpenSim>.
 
     @Manual{,
       title = {PhysioOpenSim: Native OpenSim C++ Integration for PhysioExperiment},
       author = {Yusuke Matsui},
       year = {2026},
-      note = {R package version 0.1.3},
+      note = {R package version 0.1.4},
       url = {https://github.com/x-biosignal/PhysioOpenSim},
     }

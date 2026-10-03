@@ -110,7 +110,7 @@ install.packages("PhysioOpenSim",
 
 ``` r
 
-# install.packages("remotes")
+# install.packages("remotes", repos = "https://cloud.r-project.org")
 remotes::install_github("x-biosignal/PhysioOpenSim")
 ```
 
@@ -137,53 +137,63 @@ The package requires **C++17** and **R \>= 4.2**.
 
 ## Quick Start
 
+The native OpenSim backend is optional. The quick start below works
+**without** it; the model-loading and tool-execution calls that need a
+native build are shown in a separate, clearly-guarded block.
+
 ``` r
 
 library(PhysioOpenSim)
 
-# --- Check availability ---
-opensimAvailable()
-#> [1] TRUE
-opensimBuildConfig()
-#> $detect_method
-#> [1] "OPENSIM_HOME"
-#> $include_path
-#> [1] "/opt/opensim/sdk/include"
-#> ...
+# --- Availability (native OpenSim is optional) ---
+opensimAvailable()      # FALSE unless built against the OpenSim C++ SDK
+opensimDiagnostics()    # backend, native/CLI availability, versions
 
-# --- Load and inspect a model ---
-model <- opensimLoadModel("gait2392.osim")
-opensimModelName(model)
-#> [1] "gait2392"
-opensimModelSummary(model)
-#> Bodies: 13, Joints: 13, Muscles: 92, Markers: 35
+# --- Locate the bundled OpenSim setup-XML templates ---
+opensimTemplatePath("ik")
+opensimTemplatePath("id")
 
-# --- Initialize for simulation ---
-opensimModelInitialize(model)
-opensimFinalizeConnections(model)
-
-# --- Batch-process IK from a template ---
-ik_setup <- opensimWriteIKSetupFromTemplate(
-  template_file = "templates/ik_setup.xml",
-  output_file   = "run/trial01_ik_setup.xml",
-  model_file    = "model/gait2392.osim",
-  marker_file   = "data/trial01.trc",
-  output_motion_file = "results/trial01_ik.mot",
-  time_range    = c(0.5, 1.5)
+# --- Fill a template to produce a ready-to-run setup XML (batch trial
+#     preparation; works without a native OpenSim build) ---
+setup <- opensimWriteToolSetupFromTemplate(
+  template_file = opensimTemplatePath("generic"),
+  output_file   = file.path(tempdir(), "trial01_setup.xml"),
+  fields = list(
+    model_file        = "model/subject01.osim",
+    time_range        = "0.5 1.5",
+    results_directory = "results/trial01"
+  )
 )
+setup$applied_tags
+readLines(setup$output_file)
+```
 
-# --- Run Inverse Kinematics ---
-result <- opensimRunIK(ik_setup$output_file, fail_on_error = FALSE)
-result$execution
-#> [1] "native"
-result$status
-#> [1] 0
-result$elapsed
-#> [1] 2.34
+Model operations and tool execution require a native-enabled build (see
+“OpenSim-Enabled Build” above) plus your own `.osim` model and `.trc`
+markers. The guard keeps the block inert on a fallback build:
 
-# --- Backend selection ---
-result_cli <- opensimRunIK("setup_ik.xml", execution = "cli")
-result_nat <- opensimRunIK("setup_ik.xml", execution = "native")
+``` r
+
+if (opensimAvailable()) {
+  model <- opensimLoadModel("subject01.osim")
+  opensimModelName(model)
+  opensimModelSummary(model)
+
+  ik_setup <- opensimWriteIKSetupFromTemplate(
+    template_file = opensimTemplatePath("ik"),
+    output_file   = file.path(tempdir(), "trial01_ik_setup.xml"),
+    model_file    = "subject01.osim",
+    marker_file   = "trial01.trc",
+    output_motion_file = "trial01_ik.mot",
+    time_range    = c(0.5, 1.5)
+  )
+
+  # execution = "auto" uses native when available, otherwise the opensim-cmd CLI
+  result <- opensimRunIK(ik_setup$output_file, fail_on_error = FALSE)
+  result$execution   # "native" or "cli"
+  result$status
+  result$elapsed
+}
 ```
 
 ## Dependencies
