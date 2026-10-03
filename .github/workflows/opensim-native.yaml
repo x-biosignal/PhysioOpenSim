@@ -1,0 +1,86 @@
+name: opensim-native
+
+# Builds PhysioOpenSim WITH native OpenSim (conda-forge opensim-org), runs
+# R CMD check with the bridge compiled in, and exercises a gait2392 IK+ID
+# pipeline through opensim-cmd. The default R-CMD-check.yaml already covers the
+# no-OpenSim configuration on every push.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  opensim-native:
+    runs-on: ubuntu-latest
+    name: ubuntu-latest (native OpenSim)
+    defaults:
+      run:
+        shell: bash -el {0}   # login shell so the conda env is active
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      _R_CHECK_FORCE_SUGGESTS_: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenSim + R toolchain (conda)
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: opensim
+          # opensim ships on the opensim-org channel; R toolchain on conda-forge.
+          create-args: >-
+            -c opensim-org
+            -c conda-forge
+            python=3.11
+            opensim
+            r-base
+            r-rcpp
+            r-testthat
+            r-knitr
+            r-rmarkdown
+            r-rcmdcheck
+
+      - name: Export OpenSim discovery variables
+        run: |
+          echo "CONDA_PREFIX=$CONDA_PREFIX" >> "$GITHUB_ENV"
+          echo "OPENSIM_HOME=$CONDA_PREFIX" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+          which opensim-cmd || true
+          opensim-cmd --version || true
+
+      - name: Install package (native OpenSim) and print diagnostics
+        run: |
+          R CMD INSTALL --preclean .
+          Rscript -e 'd <- PhysioOpenSim::opensimDiagnostics(); print(d); stopifnot(isTRUE(PhysioOpenSim::opensimAvailable()))'
+
+      - name: R CMD check (OpenSim enabled)
+        run: |
+          # error_on = "error": the package's pre-existing vignette NOTEs/WARNINGs
+          # are unrelated to OpenSim; this job guards against native-build errors.
+          Rscript -e 'rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"), build_args = "--no-build-vignettes", error_on = "error", check_dir = "check")'
+
+      - name: gait2392 IK + ID via opensim-cmd
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/opensim-org/opensim-models.git models
+          # Locate the Gait2392 pipeline example (model + IK/ID setup + markers).
+          IK_SETUP=$(find models -iname '*Setup_IK*.xml'  | grep -i gait2392 | head -1 || true)
+          ID_SETUP=$(find models -iname '*Setup_I*D*.xml' | grep -i gait2392 | head -1 || true)
+          MODEL=$(find models -iname 'gait2392*_simbody.osim' | head -1 || true)
+          echo "IK_SETUP=$IK_SETUP  ID_SETUP=$ID_SETUP  MODEL=$MODEL"
+          test -n "$IK_SETUP" && test -n "$ID_SETUP"
+          ( cd "$(dirname "$IK_SETUP")" && opensim-cmd run-tool "$(basename "$IK_SETUP")" )
+          ( cd "$(dirname "$ID_SETUP")" && opensim-cmd run-tool "$(basename "$ID_SETUP")" )
+          echo "--- produced outputs ---"
+          find "$(dirname "$IK_SETUP")" -iname '*.mot' -newermt '-10 minutes' -print
+          find "$(dirname "$ID_SETUP")" -iname '*.sto' -newermt '-10 minutes' -print
+          test -n "$(find "$(dirname "$IK_SETUP")" -iname '*.mot' -newermt '-10 minutes')"
+          test -n "$(find "$(dirname "$ID_SETUP")" -iname '*.sto' -newermt '-10 minutes')"
+          # Expose the model + IK setup to the gated integration tests.
+          echo "PHYSIO_OPENSIM_MODEL=$(realpath "$MODEL")" >> "$GITHUB_ENV"
+          echo "PHYSIO_OPENSIM_IK_SETUP=$(realpath "$IK_SETUP")" >> "$GITHUB_ENV"
+
+      - name: Run gated integration tests
+        run: |
+          Rscript -e 'testthat::test_local(".", stop_on_failure = TRUE)'

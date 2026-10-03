@@ -1,0 +1,129 @@
+#!/usr/bin/env sh
+# PhysioOpenSim build-time OpenSim detection.
+#
+# OpenSim linkage is optional. This script probes, in order:
+#   1. pkg-config (opensim.pc on PKG_CONFIG_PATH)
+#   2. $OPENSIM_HOME               (an OpenSim SDK install)
+#   3. $CONDA_PREFIX               (a conda-forge opensim-org environment)
+#   4. the prefix of an opensim-cmd found on PATH
+# and falls back gracefully to a no-OpenSim build (DETECT_METHOD=none) so the
+# package always installs. The detected method is baked into the build as
+# -DPHYSIO_OPENSIM_DETECT_METHOD and surfaced at runtime by opensimBuildConfig().
+set -eu
+
+PKG_CPPFLAGS=""
+PKG_LIBS=""
+HAS_OPENSIM=0
+DETECT_METHOD=none
+
+# Search an install prefix for OpenSim headers + libraries; on success sets the
+# PKG_CPPFLAGS/PKG_LIBS/HAS_OPENSIM/DETECT_METHOD globals and returns 0.
+try_prefix() {
+  root="$1"
+  method="$2"
+  if [ -z "$root" ] || [ ! -d "$root" ]; then
+    return 1
+  fi
+
+  inc_dir=""
+  for d in "$root/include" "$root/sdk/include" "$root/opensim/sdk/include"; do
+    if [ -f "$d/OpenSim/OpenSim.h" ]; then
+      inc_dir="$d"
+      break
+    fi
+  done
+
+  lib_dir=""
+  for d in "$root/lib" "$root/sdk/lib" "$root/lib64" "$root/opensim/sdk/lib"; do
+    if ls "$d"/libosimCommon.* >/dev/null 2>&1; then
+      lib_dir="$d"
+      break
+    fi
+  done
+
+  if [ -z "$inc_dir" ] || [ -z "$lib_dir" ]; then
+    return 1
+  fi
+
+  cppflags="-I$inc_dir"
+  if [ -d "$inc_dir/OpenSim" ]; then
+    cppflags="$cppflags -I$inc_dir/OpenSim"
+  fi
+  if [ -d "$inc_dir/simbody" ]; then
+    cppflags="$cppflags -I$inc_dir/simbody"
+  fi
+  cppflags="$cppflags -DPHYSIO_OPENSIM_ENABLED=1"
+
+  # The bridge references SimTK types directly (SimTK::State), and the osim
+  # libraries only pull SimTK in as an indirect DT_NEEDED, which GNU ld will not
+  # resolve for the main object. Link the SimTK/Simbody libraries explicitly,
+  # after the osim libraries, guarding each in case SONAMEs vary by version.
+  simtk_libs=""
+  for l in SimTKsimbody SimTKmath SimTKcommon; do
+    if ls "$lib_dir"/lib${l}.* >/dev/null 2>&1; then
+      simtk_libs="$simtk_libs -l$l"
+    fi
+  done
+
+  PKG_CPPFLAGS="$cppflags"
+  PKG_LIBS="-L$lib_dir -Wl,-rpath,$lib_dir -losimTools -losimAnalyses -losimActuators -losimSimulation -losimCommon$simtk_libs"
+  HAS_OPENSIM=1
+  DETECT_METHOD="$method"
+  return 0
+}
+
+# 1. pkg-config
+if command -v pkg-config >/dev/null 2>&1; then
+  if pkg-config --exists opensim; then
+    PKG_CPPFLAGS="$(pkg-config --cflags opensim) -DPHYSIO_OPENSIM_ENABLED=1"
+    PKG_LIBS="$(pkg-config --libs opensim)"
+    HAS_OPENSIM=1
+    DETECT_METHOD=pkg_config
+  fi
+fi
+
+# 2. OPENSIM_HOME (an OpenSim SDK install)
+if [ "$HAS_OPENSIM" -eq 0 ] && [ -n "${OPENSIM_HOME:-}" ]; then
+  if try_prefix "${OPENSIM_HOME}" opensim_home; then
+    :
+  fi
+fi
+
+# 3. CONDA_PREFIX (conda-forge opensim-org)
+if [ "$HAS_OPENSIM" -eq 0 ] && [ -n "${CONDA_PREFIX:-}" ]; then
+  if try_prefix "${CONDA_PREFIX}" conda_prefix; then
+    :
+  fi
+fi
+
+# 4. prefix inferred from an opensim-cmd on PATH
+if [ "$HAS_OPENSIM" -eq 0 ] && command -v opensim-cmd >/dev/null 2>&1; then
+  cmd_path="$(command -v opensim-cmd)"
+  if command -v realpath >/dev/null 2>&1; then
+    cmd_path="$(realpath "$cmd_path" 2>/dev/null || printf '%s' "$cmd_path")"
+  fi
+  bin_dir="$(dirname "$cmd_path")"
+  cmd_prefix="$(dirname "$bin_dir")"
+  if try_prefix "$cmd_prefix" opensim_cmd; then
+    :
+  fi
+fi
+
+PKG_CPPFLAGS="$PKG_CPPFLAGS -DPHYSIO_OPENSIM_DETECT_METHOD=$DETECT_METHOD"
+PKG_CPPFLAGS="$(printf '%s' "$PKG_CPPFLAGS" | sed 's/^ *//; s/  */ /g')"
+
+if [ "$HAS_OPENSIM" -eq 0 ]; then
+  echo "configure: OpenSim not detected; building without native OpenSim support." >&2
+else
+  echo "configure: OpenSim detected via $DETECT_METHOD." >&2
+fi
+
+# Emit src/Makevars directly rather than sed-substituting into src/Makevars.in:
+# the flags can contain '&' or '\' (legal in install paths) which are special in
+# a sed replacement and would silently corrupt or abort the substitution.
+# src/Makevars.in documents the template structure.
+{
+  printf 'PKG_CPPFLAGS=%s\n' "$PKG_CPPFLAGS"
+  printf 'PKG_LIBS=%s\n' "$PKG_LIBS"
+  printf 'CXX_STD=CXX17\n'
+} > src/Makevars

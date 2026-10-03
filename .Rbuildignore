@@ -1,0 +1,7 @@
+^CITATION\.cff$
+^codemeta\.json$
+^Dockerfile$
+^\.dockerignore$
+^data-raw$
+^CONTRIBUTING\.md$
+^CODE_OF_CONDUCT\.md$

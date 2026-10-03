@@ -1,0 +1,12 @@
+citHeader("To cite PhysioOpenSim in publications use:")
+
+bibentry(
+  bibtype  = "Manual",
+  title    = "PhysioOpenSim: Native OpenSim C++ Integration for PhysioExperiment",
+  author   = person("Yusuke", "Matsui"),
+  year     = "2026",
+  note     = paste("R package version", meta$Version),
+  url      = "https://github.com/x-biosignal/PhysioOpenSim"
+  # doi    = "10.5281/zenodo.XXXXXXX"  # add once minted
+)
+
